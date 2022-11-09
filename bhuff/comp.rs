@@ -3,6 +3,7 @@ use std::io::{Error,ErrorKind,Read,Write};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter;
+use std::env;
 
 //frequencies :: (Ord a) => [a] -> [(a,Int)]
 //frequencies = map (\x->(head x, length x)) . group . sort
@@ -105,29 +106,45 @@ fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
     .skip(1)
 }
 
-fn io_as_blob() -> Option<Vec<u8>> {
-    let mut buf = Vec::new();
-    io::stdin().read_to_end(&mut buf).map(|_|buf).ok()
+fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
+    let ftab = frequency_table(input)?;
+
+    let prealloc = &mut [BTree::Tip(0); 510]; // 256 Tip + 255 Bin - 1 node in local variable
+    let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
+    Some(println!("{:?}", &tree))
 }
+
+fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
+    let cmap = codes(&tree);
+    let compressed_bits = input.flat_map(|x| *cmap.get(&x).unwrap());
+
+    let mut bin_out = io::BufWriter::new(io::stdout());
+    for byte in bits_to_bytes(compressed_bits) {
+        bin_out.write_all(&[byte]).ok()?;
+    };
+
+    Some(())
+}
+
+fn decompress() -> Option<()> {
+    panic!("NOT IMPLEMENTED")
+}
+
+static HUFFTREE : &BTree<u8> = { 
+    use BTree::{Tip,Bin}; 
+    include!("hufftree.in") 
+};
 
 fn main() -> Result<(),Error> {
     (|| {
-        let input : &Vec<u8> = &io_as_blob()?;
-        let input = input.iter().cloned();
-        let ftab = frequency_table(input.clone())?;
-
-        let prealloc = &mut [BTree::Tip(0); 510]; // 256 Tip + 255 Bin - 1 node in local variable
-        let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
-
-        let cmap = codes(&tree);
-
-        let compressed_bits = input.flat_map(|x| *cmap.get(&x).unwrap());
-        let mut bin_out = io::BufWriter::new(io::stdout());
-        for byte in bits_to_bytes(compressed_bits) {
-            bin_out.write_all(&[byte]).ok()?;
+        let args: Vec<String> = env::args().collect();
+        let input = io::BufReader::new(io::stdin()).bytes().map(|x|x.unwrap());
+        match args.get(1).map(|x|x.as_str()) {
+            Some("-train") => emit_hufftree(input),
+            Some("-d")     => decompress(),
+            None           => compress(HUFFTREE, input),
+            _              => None,
         }
-
-        Some(())
     })
     ().ok_or(Error::new(ErrorKind::Other, "a useless error message"))
 }
