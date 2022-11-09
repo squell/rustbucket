@@ -26,10 +26,10 @@ fn frequency_table(s: String) -> Option<FreqTable> {
 }
 
 // data Btree a = Tip a | Bin (Btree a) (Btree a)
-#[derive(Debug,Clone,Copy)]
-enum BTree<'a,T> {
+#[derive(Debug)]
+enum BTree<T> {
     Tip(T),
-    Bin(&'a BTree<'a,T>, &'a BTree<'a,T>)
+    Bin(Box<BTree<T>>, Box<BTree<T>>)
 }
 
 // huffman :: [(a,Int)] -> Btree a
@@ -40,24 +40,16 @@ enum BTree<'a,T> {
 // 
 //         (n1,t1) <+> (n2,t2) = (n1+n2, Bin t1 t2)
 
-mod plumbing;
-use plumbing::{LocalPlumber,Alloc};
-
-fn huffman_tree<'b,F>(freq: &FreqTable, mut alloc: F) -> Option<BTree<'b, char>> 
-  where F: Alloc<'b, BTree<'b,char>>
+fn huffman_tree(freq: &FreqTable) -> Option<BTree<char>>
 {
-    type Pair<'b> = (usize, BTree<'b, char>);
+    type Pair = (usize, BTree<char>);
     let mut queue: Vec<Pair> = freq.iter().map(|&(chr,n)| (n, BTree::Tip(chr))).collect();
-
     queue.sort_unstable_by_key(|x|x.0);
 
     while queue.len() > 1 {
         let ((n1,t1),(n2,t2)) = { let mut items = queue.drain(0..=1); (items.next().unwrap(), items.next().unwrap()) }; // !!!!
-        let (u1, new_alloc) = alloc.obtain(t1);
-        let (u2, new_alloc) = new_alloc.obtain(t2);
-        alloc = new_alloc;
-        let el  = (n1+n2, BTree::Bin(u1,u2));
-        let pos = queue.binary_search_by_key(&el.0, |x|x.0).unwrap_or_else(|x|x);
+        let el  = (n1+n2, BTree::Bin(Box::new(t1), Box::new(t2)));
+        let pos = queue.binary_search_by_key(&el.0, |x|x.0).unwrap_or_else(|x| x);
         queue.insert(pos, el);
     }
 
@@ -99,8 +91,7 @@ fn io_contents() -> Option<String> {
 fn main() -> Result<(),Error> {
     (|| {
         let ftab = frequency_table(io_contents()?)?;
-        let prealloc = &mut [BTree::Tip(' '); 300];
-        let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
+        let tree = huffman_tree(&ftab)?;
         let cmap = codes(&tree);
         for (c, code) in cmap {
             println!("{:?} => {:?}", c, code)
