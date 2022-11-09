@@ -11,7 +11,6 @@ impl Bits for String {
     fn append(&self, b: bool) -> Self {
         self.clone() + (if b {"1"} else {"0"})
     }
-
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -27,6 +26,12 @@ impl Bits for RealBits {
         RealBits(i<<1 | (b as usize), siz+1)
     }
 
+}
+
+impl RealBits {
+    pub fn from_u8(n: u8) -> Self {
+        RealBits(n as usize, 8)
+    }
 }
 
 impl Iterator for RealBits {

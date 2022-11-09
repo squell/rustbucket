@@ -95,8 +95,7 @@ fn codes<T: Eq + Hash + Copy> (huftree: &BTree<T>) -> HashMap<T, BitString> {
     map
 }
 
-fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
-{
+fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8> {
     iter::once(0)
     .chain(
         stream.chain(iter::repeat(false).take(7))
@@ -106,6 +105,12 @@ fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
     .skip(1)
 }
 
+fn bytes_to_bits(stream: impl Iterator<Item=u8>) -> impl Iterator<Item=bool> {
+    stream.flat_map(|x|bitstring::RealBits::from_u8(x))
+}
+
+//not done: correct generation of huffman trees in case the input only has one byte
+//not done: some way of marking of length of bit-stream in case it's not a multiple of 8
 fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
     let ftab = frequency_table(input)?;
 
@@ -126,8 +131,19 @@ fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
     Some(())
 }
 
-fn decompress() -> Option<()> {
-    panic!("NOT IMPLEMENTED")
+fn decompress(root: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
+    debug_assert!(if let BTree::Tip(_) = root { false } else { true });
+    let mut bin_out = io::BufWriter::new(io::stdout());
+    let mut node = &root;
+    for bit in bytes_to_bits(input) {
+        loop {
+            match *node {
+                BTree::Tip(byte)  => { bin_out.write_all(&[*byte]).ok()?; node = &root },
+                BTree::Bin(t1,t2) => { node = if !bit { t1 } else { t2 }; break },
+            }
+        }
+    };
+    Some(())
 }
 
 static HUFFTREE : &BTree<u8> = { 
@@ -141,7 +157,7 @@ fn main() -> Result<(),Error> {
         let input = io::BufReader::new(io::stdin()).bytes().map(|x|x.unwrap());
         match args.get(1).map(|x|x.as_str()) {
             Some("-train") => emit_hufftree(input),
-            Some("-d")     => decompress(),
+            Some("-d")     => decompress(HUFFTREE, input),
             None           => compress(HUFFTREE, input),
             _              => None,
         }
