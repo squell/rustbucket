@@ -69,17 +69,22 @@ fn huffman_tree<'b,F>(freq: &FreqTable, mut alloc: F) -> Option<BTree<'b, char>>
 //codes (Bin l r) = [ (xl,O:cl) | (xl,cl) <- codes l ] ++
 //                  [ (xr,I:cr) | (xr,cr) <- codes r ]
 
-type BitString = String;
+mod bitstring;
+use bitstring::Bits;
+
+type BitString = bitstring::RealBits;
 
 fn codes (huftree: &BTree<char>) -> HashMap<char, BitString> {
-    let mut map;
-    match *huftree {
-        BTree::Tip(c) =>     { map = HashMap::new(); map.insert(c, BitString::new()); },
-        BTree::Bin(t1,t2) => { map = codes(t1); let mut map2 = codes(t2);
-                               map .values_mut().for_each(|s| s.insert(0, '0'));
-                               map2.values_mut().for_each(|s| s.insert(0, '1'));
-                               map.extend(map2); }
-    };
+    fn walk(map: &mut HashMap<char,BitString>, node: &BTree<char>, code: BitString) {
+        match node {
+               BTree::Tip(c)     => { map.insert(*c, code); },
+               BTree::Bin(t1,t2) => { walk(map, t1, code.append(false));
+                                      walk(map, t2, code.append(true)); }
+        }
+    }
+
+    let mut map = HashMap::new();
+    walk(&mut map, huftree, Bits::new());
     map
 }
 
