@@ -1,14 +1,18 @@
 use std::io;
 use std::io::{Error,ErrorKind,Read};
 use std::collections::HashMap;
+use std::hash::Hash;
 
 //frequencies :: (Ord a) => [a] -> [(a,Int)]
 //frequencies = map (\x->(head x, length x)) . group . sort
 
-type FreqTable = Vec<(char,usize)>;
+type FreqTable<T> = Vec<(T,usize)>;
 
-fn frequency_table(s: String) -> Option<FreqTable> {
-    let text = { let mut tmp: Vec<char> = s.chars().collect(); tmp.sort_unstable(); tmp };
+fn frequency_table<T, Iter>(stream: Iter) -> Option<FreqTable<T>>
+  where Iter: Iterator<Item=T>,
+        T: Ord + Copy
+{
+    let text = { let mut tmp: Vec<T> = stream.collect(); tmp.sort_unstable(); tmp };
 
     let mut vec  = Vec::new();
     let mut last = (*text.get(0)?, 1);
@@ -40,10 +44,11 @@ enum BTree<T> {
 // 
 //         (n1,t1) <+> (n2,t2) = (n1+n2, Bin t1 t2)
 
-fn huffman_tree(freq: &FreqTable) -> Option<BTree<char>>
+fn huffman_tree<T>(freq: &FreqTable<T>) -> Option<BTree<T>>
+  where T: Copy
 {
-    type Pair = (usize, BTree<char>);
-    let mut queue: Vec<Pair> = freq.iter().map(|&(chr,n)| (n, BTree::Tip(chr))).collect();
+    type Pair<T> = (usize, BTree<T>);
+    let mut queue: Vec<Pair<T>> = freq.iter().map(|&(chr,n)| (n, BTree::Tip(chr))).collect();
     queue.sort_unstable_by_key(|x|x.0);
 
     while queue.len() > 1 {
@@ -66,8 +71,8 @@ use bitstring::Bits;
 
 type BitString = bitstring::RealBits;
 
-fn codes (huftree: &BTree<char>) -> HashMap<char, BitString> {
-    fn walk(map: &mut HashMap<char,BitString>, node: &BTree<char>, code: BitString) {
+fn codes<T: Eq + Hash + Copy> (huftree: &BTree<T>) -> HashMap<T, BitString> {
+    fn walk<T: Eq + Hash + Copy>(map: &mut HashMap<T,BitString>, node: &BTree<T>, code: BitString) {
         match node {
                BTree::Tip(c)     => { map.insert(*c, code); },
                BTree::Bin(t1,t2) => { walk(map, t1, code.append(false));
@@ -82,15 +87,12 @@ fn codes (huftree: &BTree<char>) -> HashMap<char, BitString> {
 
 fn io_contents() -> Option<String> {
     let mut str = String::new();
-    match io::stdin().read_to_string(&mut str) {
-      Ok(_) => Some(str),
-      _     => None,
-    }
+    io::stdin().read_to_string(&mut str).map(|_| str).ok()
 }
 
 fn main() -> Result<(),Error> {
     (|| {
-        let ftab = frequency_table(io_contents()?)?;
+        let ftab = frequency_table(io_contents()?.chars())?;
         let tree = huffman_tree(&ftab)?;
         let cmap = codes(&tree);
         for (c, code) in cmap {
