@@ -2,6 +2,7 @@ use std::io;
 use std::io::{Error,ErrorKind,Read};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::iter;
 
 //frequencies :: (Ord a) => [a] -> [(a,Int)]
 //frequencies = map (\x->(head x, length x)) . group . sort
@@ -100,10 +101,13 @@ fn io_contents() -> Option<String> {
 
 fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
 {
-    stream.chain((1..8).map(|_|false))
-          .scan(0, |acc, b| { *acc = ((*acc << 1) + (b as u8)) & 0xFF; Some(*acc) })
-          .zip((1..=8).map(|x|(x&7)==0).cycle())
-          .filter_map(|(val,b)| if b { Some(val) } else { None })
+    iter::once(0)
+    .chain(
+        stream.chain(iter::repeat(false).take(7))
+              .scan(0, |acc, b| { *acc = ((*acc << 1) + (b as u8)) & 0xFF; Some(*acc) })
+    )
+    .step_by(8)
+    .skip(1)
 }
 
 fn main() -> Result<(),Error> {
