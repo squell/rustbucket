@@ -57,7 +57,7 @@ fn huffman_tree<'b,F,T>(freq: &FreqTable<T>, mut alloc: F) -> Option<BTree<'b, T
     queue.sort_unstable_by_key(|x|x.0);
 
     while queue.len() > 1 {
-        let ((n1,t1),(n2,t2)) = { let mut items = queue.drain(0..=1); (items.next().unwrap(), items.next().unwrap()) }; // !!!!
+        let ((n1,t1),(n2,t2)) = { let mut items = queue.drain(0..=1); (items.next().unwrap(), items.next().unwrap()) };
         let (u1, new_alloc) = alloc.obtain(t1);
         let (u2, new_alloc) = new_alloc.obtain(t2);
         alloc = new_alloc;
@@ -100,8 +100,8 @@ fn io_contents() -> Option<String> {
 
 fn main() -> Result<(),Error> {
     (|| {
-        let ftab = frequency_table(io_contents()?.chars())?;
-        let prealloc = &mut [BTree::Tip(' '); 300];
+        let ftab = frequency_table(io_contents()?.bytes())?;
+        let prealloc = &mut [BTree::Tip(0); 256];
         let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
         let cmap = codes(&tree);
         for (c, code) in cmap {
