@@ -2,22 +2,24 @@
  * https://en.wikipedia.org/wiki/Burrows%E2%80%93Wheeler_transform
  */
 
-fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> Vec<Option<T>> {
+fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> (usize, Vec<T>) {
     let mut range: Vec<usize> = (0..=data.len()).collect();
     range.sort_by_key(|&i| &data[i..]);
-    return range.iter().map(|&i| if i > 0 { Some(data[i-1]) } else { None } ).collect();
+    let startpos = range.iter().position(|&i| i==0).unwrap();
+    let vec = range.iter().filter_map(|&i| if i > 0 { Some(data[i-1]) } else { None } ).collect();
+    return (startpos, vec);
 }
 
 //this can be done as an iterator to get 'early output'
-fn bw_reverse<T: Ord+Copy>(data: &Vec<Option<T>>) -> Vec<T> {
-    let mut range: Vec<(Option<T>,usize)> = data.iter().cloned().zip(0..).collect();
+fn bw_reverse<T: Ord+Copy>((startpos,data): &(usize,Vec<T>)) -> Vec<T> {
+    let mut range: Vec<(T,usize)> = data.iter().cloned().zip((0..=data.len()).filter(|&n|n!=*startpos)).collect();
     let mut out = Vec::new();
-    out.reserve(range.len()-1);
+    out.reserve(range.len());
     range.sort_by_key(|&(c,_)| c);
-    let mut i = range[0].1;
-    for _ in 1..range.len() {
-        out.push(range[i].0.unwrap());
-        i = range[i].1;
+    let mut i = *startpos;
+    while i > 0 {
+        out.push(range[i-1].0);
+        i = range[i-1].1;
     }
     return out
 }
