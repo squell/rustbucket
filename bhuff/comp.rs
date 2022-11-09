@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Error,ErrorKind,Read};
+use std::io::{Error,ErrorKind,Read,Write};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter;
@@ -94,11 +94,6 @@ fn codes<T: Eq + Hash + Copy> (huftree: &BTree<T>) -> HashMap<T, BitString> {
     map
 }
 
-fn io_contents() -> Option<String> {
-    let mut str = String::new();
-    io::stdin().read_to_string(&mut str).map(|_| str).ok()
-}
-
 fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
 {
     iter::once(0)
@@ -110,23 +105,26 @@ fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
     .skip(1)
 }
 
+fn io_as_blob() -> Option<Vec<u8>> {
+    let mut buf = Vec::new();
+    io::stdin().read_to_end(&mut buf).map(|_|buf).ok()
+}
+
 fn main() -> Result<(),Error> {
     (|| {
-        let input = &io_contents()?;
-        let input = input.bytes();
+        let input : &Vec<u8> = &io_as_blob()?;
+        let input = input.iter().cloned();
         let ftab = frequency_table(input.clone())?;
 
-        let prealloc = &mut [BTree::Tip(0); 256];
+        let prealloc = &mut [BTree::Tip(0); 510]; // 256 Tip + 255 Bin - 1 node in local variable
         let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
 
         let cmap = codes(&tree);
-        for (c, code) in &cmap {
-            println!("{:?} => {:?}", c, code)
-        };
 
         let compressed_bits = input.flat_map(|x| *cmap.get(&x).unwrap());
+        let mut bin_out = io::BufWriter::new(io::stdout());
         for byte in bits_to_bytes(compressed_bits) {
-            println!("{:?}", byte)
+            bin_out.write_all(&[byte]).ok()?;
         }
 
         Some(())
