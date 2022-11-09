@@ -98,15 +98,33 @@ fn io_contents() -> Option<String> {
     io::stdin().read_to_string(&mut str).map(|_| str).ok()
 }
 
+fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8>
+{
+    stream.chain((1..8).map(|_|false))
+          .scan(0, |acc, b| { *acc = ((*acc << 1) + (b as u8)) & 0xFF; Some(*acc) })
+          .zip((1..=8).map(|x|(x&7)==0).cycle())
+          .filter_map(|(val,b)| if b { Some(val) } else { None })
+}
+
 fn main() -> Result<(),Error> {
     (|| {
-        let ftab = frequency_table(io_contents()?.bytes())?;
+        let input = &io_contents()?;
+        let input = input.bytes();
+        let ftab = frequency_table(input.clone())?;
+
         let prealloc = &mut [BTree::Tip(0); 256];
         let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
+
         let cmap = codes(&tree);
-        for (c, code) in cmap {
+        for (c, code) in &cmap {
             println!("{:?} => {:?}", c, code)
         };
+
+        let compressed_bits = input.flat_map(|x| *cmap.get(&x).unwrap());
+        for byte in bits_to_bytes(compressed_bits) {
+            println!("{:?}", byte)
+        }
+
         Some(())
     })
     ().ok_or(Error::new(ErrorKind::Other, "a useless error message"))
