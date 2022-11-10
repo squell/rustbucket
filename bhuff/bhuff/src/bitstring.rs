@@ -1,6 +1,6 @@
 pub trait Bits {
     fn new() -> Self;
-    fn append(&self, bool) -> Self;
+    fn append(&self, _: bool) -> Self;
 }
 
 impl Bits for String {
