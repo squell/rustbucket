@@ -1,7 +1,0 @@
-Rustbucket
-==========
-Rapid oxidization processes.
-  
-bhuff
------
-Simple 'compression' using Huffman encoding; use `bhuff` and `bhuff -d`
