@@ -2,6 +2,7 @@
  * https://en.wikipedia.org/wiki/Burrows%E2%80%93Wheeler_transform
  */
 
+// these two functions can probably work in-place
 fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> (usize, Vec<T>) {
     let mut range: Vec<usize> = (0..=data.len()).collect();
     range.sort_by_key(|&i| &data[i..]);
@@ -53,4 +54,19 @@ fn unmove_to_front(data: &mut Vec<u8>) {
         alphabet[0] = c;
         *index = c;
     }
+}
+
+/* combined BW & MTF transformation */
+pub fn transform(input: impl Iterator<Item=u8>) -> (usize, Vec<u8>) {
+    use transform::*;
+    let (startpos, mut vec) = bw_transform(&input.collect());
+    move_to_front(&mut vec);
+    (startpos, vec)
+}
+
+pub fn untransform(startpos: usize, input: impl Iterator<Item=u8>) -> Vec<u8> {
+    use transform::*;
+    let mut vec = input.collect();
+    unmove_to_front(&mut vec);
+    bw_reverse(&(startpos, vec))
 }
