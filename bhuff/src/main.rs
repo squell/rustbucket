@@ -109,10 +109,13 @@ fn bytes_to_bits(stream: impl Iterator<Item=u8>) -> impl Iterator<Item=bool> {
     stream.flat_map(|x|bitstring::RealBits::from_u8(x))
 }
 
+mod transform;
+use transform::{transform,untransform};
+
 //not done: correct generation of huffman trees in case the input only has one byte
-//not done: some way of marking of length of bit-stream in case it's not a multiple of 8
 fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
-    let ftab = frequency_table(input)?;
+    let (_, input) = transform(input);
+    let ftab = frequency_table(input.iter().cloned())?;
 
     let prealloc = &mut [BTree::Tip(0); 510]; // 256 Tip + 255 Bin - 1 node in local variable
     let tree = huffman_tree(&ftab, LocalPlumber(prealloc))?;
@@ -120,10 +123,14 @@ fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
 }
 
 fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
+    let (bw_pos, input) = transform(input);
+
     let cmap = codes(&tree);
-    let compressed_bits = input.flat_map(|x| *cmap.get(&x).unwrap());
+    let compressed_bits = input.iter().flat_map(|x| *cmap.get(&x).unwrap());
 
     let mut bin_out = io::BufWriter::new(io::stdout());
+    bin_out.write_all(&input.len().to_ne_bytes()).ok()?;
+    bin_out.write_all(&bw_pos.to_ne_bytes()).ok()?;
     for byte in bits_to_bytes(compressed_bits) {
         bin_out.write_all(&[byte]).ok()?;
     };
@@ -131,18 +138,35 @@ fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
     Some(())
 }
 
-fn decompress(root: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
+fn get_usize(input: &mut impl Iterator<Item=u8>) -> usize {
+    let mut data = [0u8; 8];
+    for i in 0..=7 {
+        data[i] = input.next().unwrap()
+    }
+    return usize::from_ne_bytes(data)
+}
+
+fn decompress(root: &BTree<u8>, mut input: impl Iterator<Item=u8>) -> Option<()> {
     debug_assert!(if let BTree::Tip(_) = root { false } else { true });
+
+    let inp_len = get_usize(&mut input);
+    let bw_pos  = get_usize(&mut input);
+    let mut out = Vec::<u8>::new();
+    out.reserve(inp_len+1);
+
     let mut bin_out = io::BufWriter::new(io::stdout());
     let mut node = &root;
     for bit in bytes_to_bits(input) {
         loop {
             match *node {
-                BTree::Tip(byte)  => { bin_out.write_all(&[*byte]).ok()?; node = &root },
+                BTree::Tip(byte)  => { out.push(*byte); node = &root },
                 BTree::Bin(t1,t2) => { node = if !bit { t1 } else { t2 }; break },
             }
         }
     };
+
+    out.truncate(inp_len);
+    bin_out.write_all(&untransform(bw_pos, out.iter().cloned())).ok()?;
     Some(())
 }
 
