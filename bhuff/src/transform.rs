@@ -8,7 +8,8 @@ fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> (usize, Vec<T>) {
     range.sort_by_key(|&i| &data[i..]);
     let startpos = range.iter().position(|&i| i==0).unwrap();
     let vec = range.iter().filter_map(|&i| if i > 0 { Some(data[i-1]) } else { None } ).collect();
-    return (startpos, vec);
+
+    (startpos, vec)
 }
 
 //this can be done as an iterator to get 'early output'
@@ -22,14 +23,15 @@ fn bw_reverse<T: Ord+Copy>((startpos,data): &(usize,Vec<T>)) -> Vec<T> {
         out.push(range[i-1].0);
         i = range[i-1].1;
     }
-    return out
+    out
 }
 
 /* The obligatory 'move to front' transformation:
  * https://en.wikipedia.org/wiki/Move-to-front_transform
  */
 
-fn move_to_front(data: &mut Vec<u8>) {
+#[allow(clippy::needless_range_loop)]
+fn move_to_front(data: &mut [u8]) {
     let mut alphabet: [u8; 256] = [0; 256];
     for i in 0..=255 {
         alphabet[i] = i as u8
@@ -42,7 +44,8 @@ fn move_to_front(data: &mut Vec<u8>) {
     }
 }
 
-fn unmove_to_front(data: &mut Vec<u8>) {
+#[allow(clippy::needless_range_loop)]
+fn unmove_to_front(data: &mut [u8]) {
     let mut alphabet: [u8; 256] = [0; 256];
     for i in 0..=255 {
         alphabet[i] = i as u8
@@ -64,7 +67,7 @@ pub fn transform(input: impl Iterator<Item=u8>) -> (usize, Vec<u8>) {
 }
 
 pub fn untransform(startpos: usize, input: impl Iterator<Item=u8>) -> Vec<u8> {
-    let mut vec = input.collect();
+    let mut vec = input.collect::<Vec<_>>();
     unmove_to_front(&mut vec);
     bw_reverse(&(startpos, vec))
 }

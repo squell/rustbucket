@@ -98,14 +98,14 @@ fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8> {
     iter::once(0)
     .chain(
         stream.chain(iter::repeat(false).take(7))
-              .scan(0, |acc, b| { *acc = ((*acc << 1) + (b as u8)) & 0xFF; Some(*acc) })
+              .scan(0, |acc, b| { *acc = (*acc << 1) + (b as u8); Some(*acc) })
     )
     .step_by(8)
     .skip(1)
 }
 
 fn bytes_to_bits(stream: impl Iterator<Item=u8>) -> impl Iterator<Item=bool> {
-    stream.flat_map(|x|bitstring::RealBits::from_u8(x))
+    stream.flat_map(bitstring::RealBits::from_u8)
 }
 
 mod transform;
@@ -124,8 +124,8 @@ fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
 fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
     let (bw_pos, input) = transform(input);
 
-    let cmap = codes(&tree);
-    let compressed_bits = input.iter().flat_map(|x| *cmap.get(&x).unwrap());
+    let cmap = codes(tree);
+    let compressed_bits = input.iter().flat_map(|x| *cmap.get(x).unwrap());
 
     let mut bin_out = io::BufWriter::new(io::stdout());
     bin_out.write_all(&input.len().to_ne_bytes()).ok()?;
@@ -139,14 +139,14 @@ fn compress(tree: &BTree<u8>, input: impl Iterator<Item=u8>) -> Option<()> {
 
 fn get_usize(input: &mut impl Iterator<Item=u8>) -> usize {
     let mut data = [0u8; 8];
-    for i in 0..=7 {
-        data[i] = input.next().unwrap()
+    for byte in &mut data {
+        *byte = input.next().unwrap()
     }
-    return usize::from_ne_bytes(data)
+    usize::from_ne_bytes(data)
 }
 
 fn decompress(root: &BTree<u8>, mut input: impl Iterator<Item=u8>) -> Option<()> {
-    debug_assert!(if let BTree::Tip(_) = root { false } else { true });
+    debug_assert!(!matches!(root, BTree::Tip(_)));
 
     let inp_len = get_usize(&mut input);
     let bw_pos  = get_usize(&mut input);
@@ -175,7 +175,7 @@ static HUFFTREE : &BTree<u8> = {
 };
 
 fn main() -> Result<(),Error> {
-    (|| {
+    {
         let args: Vec<String> = env::args().collect();
         let input = io::BufReader::new(io::stdin()).bytes().map(|x|x.unwrap());
         match args.get(1).map(|x|x.as_str()) {
@@ -184,6 +184,6 @@ fn main() -> Result<(),Error> {
             None           => compress(HUFFTREE, input),
             _              => None,
         }
-    })
-    ().ok_or(Error::new(ErrorKind::Other, "a useless error message"))
+    }
+    .ok_or_else(|| Error::new(ErrorKind::Other, "a useless error message"))
 }
