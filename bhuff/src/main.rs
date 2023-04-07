@@ -60,9 +60,8 @@ fn huffman_tree<'b,F,T>(freq: &FreqTable<T>, mut alloc: F) -> Option<BTree<'b, T
 
     while queue.len() > 1 {
         let ((n1,t1),(n2,t2)) = { let mut items = queue.drain(0..=1); (items.next().unwrap(), items.next().unwrap()) };
-        let (u1, new_alloc) = alloc.obtain(t1);
-        let (u2, new_alloc) = new_alloc.obtain(t2);
-        alloc = new_alloc;
+        let u1 = alloc.obtain(t1);
+        let u2 = alloc.obtain(t2);
         let el  = (n1+n2, BTree::Bin(u1,u2));
         let pos = queue.binary_search_by_key(&el.0, |x|x.0).unwrap_or_else(|x|x);
         queue.insert(pos, el);
