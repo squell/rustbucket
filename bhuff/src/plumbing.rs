@@ -17,12 +17,9 @@ pub struct LocalPlumber<'b,T>(pub &'b mut [T]);
 
 impl<'b,T> Alloc<'b,T> for LocalPlumber<'b,T> {
     fn obtain(&mut self, x: T) -> &'b T {
-        let mut temp: &'b mut [T] = &mut [];
-        std::mem::swap(&mut self.0, &mut temp);
         let cell;
-        (cell,self.0) = temp.split_at_mut(1);
-        let elem = &mut cell[0];
-        *elem = x;
-        return elem;
+        (cell,self.0) = std::mem::take(&mut self.0).split_at_mut(1);
+        cell[0] = x;
+        &cell[0]
     }
 }

@@ -3,6 +3,7 @@
  */
 
 // these two functions can probably work in-place
+#[allow(clippy::ptr_arg)]
 fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> (usize, Vec<T>) {
     let mut range: Vec<usize> = (0..=data.len()).collect();
     range.sort_by_key(|&i| &data[i..]);
@@ -15,8 +16,7 @@ fn bw_transform<T: Ord+Copy>(data: &Vec<T>) -> (usize, Vec<T>) {
 //this can be done as an iterator to get 'early output'
 fn bw_reverse<T: Ord+Copy>((startpos,data): &(usize,Vec<T>)) -> Vec<T> {
     let mut range: Vec<(T,usize)> = data.iter().cloned().zip((0..=data.len()).filter(|&n|n!=*startpos)).collect();
-    let mut out = Vec::new();
-    out.reserve(range.len());
+    let mut out = Vec::with_capacity(range.len());
     range.sort_by_key(|&(c,_)| c);
     let mut i = *startpos;
     while i > 0 {

@@ -1,5 +1,5 @@
 use std::io;
-use std::io::{Error,ErrorKind,Read,Write};
+use std::io::{Error,Read,Write};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::iter;
@@ -17,7 +17,7 @@ fn frequency_table<T, Iter>(stream: Iter) -> Option<FreqTable<T>>
     let text = { let mut tmp: Vec<T> = stream.collect(); tmp.sort_unstable(); tmp };
 
     let mut vec  = Vec::new();
-    let mut last = (*text.get(0)?, 1);
+    let mut last = (*text.first()?, 1);
 
     for &c in text.iter().skip(1) {
         if last.0 == c {
@@ -97,7 +97,7 @@ fn codes<T: Eq + Hash + Copy> (huftree: &BTree<T>) -> HashMap<T, BitString> {
 fn bits_to_bytes(stream: impl Iterator<Item=bool>) -> impl Iterator<Item=u8> {
     iter::once(0)
     .chain(
-        stream.chain(iter::repeat(false).take(7))
+        stream.chain(iter::repeat_n(false,7))
               .scan(0, |acc, b| { *acc = (*acc << 1) + (b as u8); Some(*acc) })
     )
     .step_by(8)
@@ -112,6 +112,7 @@ mod transform;
 use transform::{transform,untransform};
 
 //not done: correct generation of huffman trees in case the input only has one byte
+#[allow(clippy::unit_arg)]
 fn emit_hufftree(input: impl Iterator<Item=u8>) -> Option<()> {
     let (_, input) = transform(input);
     let ftab = frequency_table(input.iter().cloned())?;
@@ -150,8 +151,7 @@ fn decompress(root: &BTree<u8>, mut input: impl Iterator<Item=u8>) -> Option<()>
 
     let inp_len = get_usize(&mut input);
     let bw_pos  = get_usize(&mut input);
-    let mut out = Vec::<u8>::new();
-    out.reserve(inp_len+1);
+    let mut out = Vec::<u8>::with_capacity(inp_len+1);
 
     let mut bin_out = io::BufWriter::new(io::stdout());
     let mut node = &root;
@@ -185,5 +185,5 @@ fn main() -> Result<(),Error> {
             _              => None,
         }
     }
-    .ok_or_else(|| Error::new(ErrorKind::Other, "a useless error message"))
+    .ok_or_else(|| Error::other("a useless error message"))
 }
